@@ -116,10 +116,26 @@ def main():
     driver=make_driver()
     try:
         matches=read_matches(driver)
-        for match in matches: add_commentary(driver,match)
+
+        for match in matches:
+            print(
+                "FOUND:",
+                match["home"],
+                "vs",
+                match["away"],
+                "-",
+                match["status"],
+                "-",
+                match["score"],
+            )
+
+        for match in matches:
+            add_commentary(driver,match)
+
         payload={"updated":datetime.now(SA).strftime("%Y-%m-%d %H:%M:%S SAST"),"matches":matches}
         OUT.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
         print(f"Saved {len(matches)} matches")
-    finally: driver.quit()
+    finally:
+        driver.quit()
 
 if __name__=="__main__": main()
