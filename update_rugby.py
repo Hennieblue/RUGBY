@@ -46,22 +46,70 @@ def parse_card(text):
     return kickoff, status
 
 def containers(driver):
-    result, seen = [], set()
-    for link in driver.find_elements(By.CSS_SELECTOR, 'a[href*="/live/"]'):
-        try:
-            href, el, best = link.get_attribute("href") or "", link, None
-            for _ in range(10):
-                el = el.find_element(By.XPATH, "..")
-                alts = []
-                for img in el.find_elements(By.CSS_SELECTOR, "img[alt]"):
-                    a = clean(img.get_attribute("alt"))
-                    if a and a.lower() not in {"image","logo"} and a not in alts: alts.append(a)
-                if len(alts) >= 2 and 10 <= len(clean(el.text)) <= 500: best = el; break
-            if best is not None and (href, clean(best.text)) not in seen:
-                seen.add((href, clean(best.text))); result.append((best, href))
-        except Exception: pass
-    return result
+    result = []
+    seen = set()
 
+    # Probeer alle skakels na Rugby365 live-wedstryde vind.
+    links = driver.find_elements(
+        By.CSS_SELECTOR,
+        'a[href*="/live/"]',
+    )
+
+    for link in links:
+        try:
+            href = link.get_attribute("href") or ""
+
+            if not href:
+                continue
+
+            el = link
+
+            # Gaan op deur die ouer-elemente totdat ons
+            # 'n wedstrydkaart met spanname kry.
+            for _ in range(15):
+                el = el.find_element(By.XPATH, "..")
+
+                text = clean(el.text)
+
+                alts = []
+
+                for img in el.find_elements(
+                    By.CSS_SELECTOR,
+                    "img[alt]",
+                ):
+                    a = clean(
+                        img.get_attribute("alt")
+                    )
+
+                    if (
+                        a
+                        and a.lower()
+                        not in {"image", "logo"}
+                        and a not in alts
+                    ):
+                        alts.append(a)
+
+                # 'n Wedstrydkaart behoort minstens
+                # twee spanname te hê.
+                if len(alts) >= 2 and len(text) <= 1000:
+
+                    key = (
+                        href,
+                        text,
+                    )
+
+                    if key not in seen:
+                        seen.add(key)
+                        result.append(
+                            (el, href)
+                        )
+
+                    break
+
+        except Exception:
+            pass
+
+    return result
 def read_matches(driver):
     driver.get(URL)
     WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.TAG_NAME,"body")))
