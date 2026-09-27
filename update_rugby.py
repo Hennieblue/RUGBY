@@ -305,18 +305,7 @@ def main():
                 match["score"],
             )
 
-        print("STARTING COMMENTARY")
-
-        for match in matches:
-            print(
-                "COMMENTARY:",
-                match["home"],
-                "vs",
-                match["away"]
-            )
-            add_commentary(driver,match)
-
-        print("COMMENTARY COMPLETE")
+        print("COMMENTARY SKIPPED FOR TEST")
 
         payload={"updated":datetime.now(SA).strftime("%Y-%m-%d %H:%M:%S SAST"),"matches":matches}
         OUT.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
