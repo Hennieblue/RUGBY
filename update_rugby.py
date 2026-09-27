@@ -307,17 +307,7 @@ def main():
             )
 
         print("COMMENTARY SKIPPED FOR TEST")
-
-        previous_data = load_previous_data()
-
-        print("CHECKING ONESIGNAL")
-
-        check_finished_matches(
-            previous_data,
-            matches
-        )
-
-        print("ONESIGNAL CHECK COMPLETE")
+        print("ONESIGNAL TEST SKIPPED")
 
         payload = {
             "updated": datetime.now(SA).strftime(
