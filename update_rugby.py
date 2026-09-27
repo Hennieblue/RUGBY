@@ -289,9 +289,10 @@ def add_commentary(driver, match):
         match["commentary_note"]="Commentary is not available yet."
 
 def main():
-    driver=make_driver()
+    driver = make_driver()
+
     try:
-        matches=read_matches(driver)
+        matches = read_matches(driver)
 
         for match in matches:
             print(
@@ -307,10 +308,40 @@ def main():
 
         print("COMMENTARY SKIPPED FOR TEST")
 
-        payload={"updated":datetime.now(SA).strftime("%Y-%m-%d %H:%M:%S SAST"),"matches":matches}
-        OUT.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
-        print(f"Saved {len(matches)} matches")
+        previous_data = load_previous_data()
+
+        print("CHECKING ONESIGNAL")
+
+        check_finished_matches(
+            previous_data,
+            matches
+        )
+
+        print("ONESIGNAL CHECK COMPLETE")
+
+        payload = {
+            "updated": datetime.now(SA).strftime(
+                "%Y-%m-%d %H:%M:%S SAST"
+            ),
+            "matches": matches
+        }
+
+        OUT.write_text(
+            json.dumps(
+                payload,
+                ensure_ascii=False,
+                indent=2
+            ),
+            encoding="utf-8"
+        )
+
+        print(
+            f"Saved {len(matches)} matches"
+        )
+
     finally:
         driver.quit()
 
-if __name__=="__main__": main()
+
+if __name__ == "__main__":
+    main()
