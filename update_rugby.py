@@ -1,6 +1,8 @@
 import json
 import re
 import time
+import os
+from urllib.request import Request, urlopen
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -15,6 +17,53 @@ OUT = Path(__file__).with_name("data.json")
 SA = ZoneInfo("Africa/Johannesburg")
 EVENT_NAMES = {"try":"TRY","con":"CONVERSION","pg":"PENALTY GOAL","dg":"DROP GOAL","yc":"YELLOW CARD","rc":"RED CARD","sub":"SUBSTITUTION"}
 
+def send_notification(title, body):
+    api_key = os.environ.get("ONESIGNAL_API_KEY")
+    app_id = os.environ.get("ONESIGNAL_APP_ID")
+
+    if not api_key:
+        print("ONESIGNAL ERROR: API key missing")
+        return
+
+    if not app_id:
+        print("ONESIGNAL ERROR: App ID missing")
+        return
+
+    payload = {
+        "app_id": app_id,
+        "target_channel": "push",
+        "included_segments": [
+            "Subscribed Users"
+        ],
+        "headings": {
+            "en": title
+        },
+        "contents": {
+            "en": body
+        },
+        "url": "https://hennieblue.github.io/Rugby-Today/"
+    }
+
+    request = Request(
+        "https://api.onesignal.com/notifications",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Key {api_key}",
+            "Content-Type": "application/json"
+        },
+        method="POST"
+    )
+
+    try:
+        with urlopen(request, timeout=20) as response:
+            result = response.read().decode("utf-8")
+            print("ONESIGNAL RESPONSE:", result)
+
+    except Exception as e:
+        print(
+            "ONESIGNAL ERROR:",
+            str(e)
+        )
 def clean(value): return re.sub(r"\s+", " ", value or "").strip()
 
 def first_text(parent, selector, default=""):
