@@ -142,32 +142,130 @@ def containers(driver):
     return result
 def read_matches(driver):
     driver.get(URL)
-    WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.TAG_NAME,"body")))
-    time.sleep(3); driver.execute_script("window.scrollTo(0,document.body.scrollHeight)"); time.sleep(1); driver.execute_script("window.scrollTo(0,0)")
-    matches, seen = [], set()
+
+    WebDriverWait(driver, 30).until(
+        EC.presence_of_element_located(
+            (By.TAG_NAME, "body")
+        )
+    )
+
+    time.sleep(3)
+
+    driver.execute_script(
+        "window.scrollTo(0,document.body.scrollHeight)"
+    )
+
+    time.sleep(2)
+
+    driver.execute_script(
+        "window.scrollTo(0,0)"
+    )
+
+    time.sleep(1)
+
+    matches = []
+    seen = set()
+
     for el, href in containers(driver):
         try:
-            alts=[]
-            for img in el.find_elements(By.CSS_SELECTOR,"img[alt]"):
-                a=clean(img.get_attribute("alt"))
-                if a and a.lower() not in {"image","logo"} and a not in alts: alts.append(a)
-            slug=re.search(r"/live/([^/?#]+)",href)
-            teams=[clean(x.replace("-"," ")) for x in (slug.group(1).split("-vs-") if slug else [])]
-            if len(alts)>=2: home,away=alts[-2],alts[-1]
-            elif len(teams)==2: home,away=teams
-            else: continue
-            key=(home.lower(),away.lower())
-            if key in seen: continue
-            seen.add(key)
-            kickoff,status=parse_card(el.text)
-            if status=="FINISHED": continue
-            hs,aws=first_text(el,".score.home"),first_text(el,".score.away")
-            score=f"{int(hs)} - {int(aws)}" if hs.isdigit() and aws.isdigit() else "0 - 0"
-            if status=="UPCOMING": score="0 - 0"
-            matches.append({"home":home,"away":away,"kickoff":kickoff,"status":status,"score":score,"url":href,"commentary":[],"commentary_note":"No key events yet."})
-        except Exception: pass
-    return matches
+            slug = re.search(
+                r"/live/([^/?#]+)",
+                href,
+                re.I
+            )
 
+            if not slug:
+                continue
+
+            slug_text = slug.group(1)
+
+            parts = re.split(
+                r"-vs-",
+                slug_text,
+                flags=re.I
+            )
+
+            if len(parts) != 2:
+                continue
+
+            home = clean(
+                parts[0].replace("-", " ")
+            )
+
+            away = clean(
+                parts[1].replace("-", " ")
+            )
+
+            if not home or not away:
+                continue
+
+            key = (
+                home.lower(),
+                away.lower()
+            )
+
+            if key in seen:
+                continue
+
+            seen.add(key)
+
+            text = clean(el.text)
+
+            kickoff, status = parse_card(text)
+
+            hs = first_text(
+                el,
+                ".score.home"
+            )
+
+            aws = first_text(
+                el,
+                ".score.away"
+            )
+
+            if (
+                hs.isdigit()
+                and aws.isdigit()
+            ):
+                score = (
+                    f"{int(hs)} - "
+                    f"{int(aws)}"
+                )
+            else:
+                # Probeer 'n gewone score uit die
+                # kaart se teks te kry.
+                score_match = re.search(
+                    r"\b(\d+)\s*-\s*(\d+)\b",
+                    text
+                )
+
+                if score_match:
+                    score = (
+                        f"{int(score_match.group(1))} - "
+                        f"{int(score_match.group(2))}"
+                    )
+                else:
+                    score = "0 - 0"
+
+            if status == "UPCOMING":
+                score = "0 - 0"
+
+            matches.append({
+                "home": home,
+                "away": away,
+                "kickoff": kickoff,
+                "status": status,
+                "score": score,
+                "commentary": []
+            })
+
+        except Exception as e:
+            print(
+                "MATCH ERROR:",
+                str(e)[:150]
+            )
+
+    return matches
 def add_commentary(driver, match):
     try:
         driver.get(match["url"]); WebDriverWait(driver,20).until(EC.presence_of_element_located((By.CSS_SELECTOR,".game-header"))); time.sleep(.7)
