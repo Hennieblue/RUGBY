@@ -56,18 +56,29 @@ def containers(driver):
 
     print("LIVE LINKS FOUND:", len(links))
 
-    for i, link in enumerate(links, 1):
+    for link in links:
         try:
             href = link.get_attribute("href") or ""
-            text = clean(link.text)
 
-            print(
-                f"LIVE LINK {i}:",
+            # Slegs werklike wedstryd-skakels.
+            match = re.search(
+                r"/live/([^/?#]+)-vs-([^/?#]+)",
                 href,
-                "|",
-                text[:200]
+                re.I
             )
 
+            if not match:
+                continue
+
+            key = href.split("?")[0].lower()
+
+            if key in seen:
+                continue
+
+            seen.add(key)
+
+            # Kry die naaste element wat die wedstryd se
+            # inligting bevat.
             el = link
 
             for _ in range(12):
@@ -76,51 +87,50 @@ def containers(driver):
                     ".."
                 )
 
-                card_text = clean(el.text)
+                text = clean(el.text)
 
-                if not card_text:
-                    continue
+                if text:
+                    alts = []
 
-                alts = []
-
-                for img in el.find_elements(
-                    By.CSS_SELECTOR,
-                    "img[alt]"
-                ):
-                    a = clean(
-                        img.get_attribute("alt")
-                    )
-
-                    if (
-                        a
-                        and a.lower()
-                        not in {
-                            "image",
-                            "logo",
-                            "company logo",
-                            "powered by onetrust"
-                        }
-                        and a not in alts
+                    for img in el.find_elements(
+                        By.CSS_SELECTOR,
+                        "img[alt]"
                     ):
-                        alts.append(a)
+                        a = clean(
+                            img.get_attribute("alt")
+                        )
 
-                if len(alts) >= 2:
-                    key = (
-                        href,
-                        card_text
-                    )
+                        if (
+                            a
+                            and a.lower()
+                            not in {
+                                "image",
+                                "logo",
+                                "company logo",
+                                "powered by onetrust"
+                            }
+                            and a not in alts
+                        ):
+                            alts.append(a)
 
-                    if key not in seen:
-                        seen.add(key)
+                    # 'n Kaart met minstens twee spanname-prente
+                    # is die een wat ons wil hê.
+                    if len(alts) >= 2:
                         result.append(
                             (el, href)
                         )
+                        break
 
-                    break
+            else:
+                # As die spanname-prente nie beskikbaar is nie,
+                # gebruik steeds die live-link.
+                result.append(
+                    (link, href)
+                )
 
         except Exception as e:
             print(
-                "LINK ERROR:",
+                "CONTAINER ERROR:",
                 str(e)[:150]
             )
 
