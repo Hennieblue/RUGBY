@@ -49,55 +49,49 @@ def containers(driver):
     result = []
     seen = set()
 
-    images = driver.find_elements(
+    links = driver.find_elements(
         By.CSS_SELECTOR,
-        "img[alt]",
+        'a[href*="/live/"]'
     )
 
-    for img in images:
+    for link in links:
         try:
-            alt = clean(
-                img.get_attribute("alt")
-            )
+            href = link.get_attribute("href") or ""
 
-            if (
-                not alt
-                or alt.lower() in {
-                    "image",
-                    "logo",
-                }
-            ):
+            if "/live/" not in href:
                 continue
 
-            el = img
+            el = link
+            best = None
 
             for _ in range(12):
                 el = el.find_element(
                     By.XPATH,
-                    "..",
+                    ".."
                 )
 
                 text = clean(el.text)
 
-                if not text or len(text) > 1200:
+                if not text or len(text) > 800:
                     continue
 
                 alts = []
 
-                for other in el.find_elements(
+                for img in el.find_elements(
                     By.CSS_SELECTOR,
-                    "img[alt]",
+                    "img[alt]"
                 ):
                     a = clean(
-                        other.get_attribute("alt")
+                        img.get_attribute("alt")
                     )
 
                     if (
                         a
-                        and a.lower()
-                        not in {
+                        and a.lower() not in {
                             "image",
                             "logo",
+                            "company logo",
+                            "powered by onetrust"
                         }
                         and a not in alts
                     ):
@@ -106,54 +100,85 @@ def containers(driver):
                 if len(alts) < 2:
                     continue
 
-                href = ""
-
-                links = el.find_elements(
-                    By.CSS_SELECTOR,
-                    'a[href*="/live/"]',
+                # Die kaart moet werklike wedstryd-inligting bevat.
+                has_score = bool(
+                    re.search(
+                        r"\b\d+\s*-\s*\d+\b",
+                        text
+                    )
                 )
 
-                if links:
-                    href = (
-                        links[0]
-                        .get_attribute("href")
+                has_time = bool(
+                    re.search(
+                        r"\b\d{1,2}:\d{2}\b",
+                        text
+                    )
+                )
+
+                has_status = any(
+                    word in text.upper()
+                    for word in [
+                        "LIVE",
+                        "FINISHED",
+                        "UPCOMING",
+                        "FT",
+                        "HALF TIME",
+                        "HT"
+                    ]
+                )
+
+                if not (
+                    has_score
+                    or has_time
+                    or has_status
+                ):
+                    continue
+
+                # Maak seker daar is 'n werklike
+                # wedstryd-link binne hierdie kaart.
+                match_links = el.find_elements(
+                    By.CSS_SELECTOR,
+                    'a[href*="/live/"]'
+                )
+
+                valid_match_link = False
+
+                for match_link in match_links:
+                    h = (
+                        match_link.get_attribute("href")
                         or ""
                     )
 
-                if not href:
-                    links = el.find_elements(
-                        By.CSS_SELECTOR,
-                        "a[href]",
-                    )
+                    if re.search(
+                        r"/live/[^/?#]+-vs-[^/?#]+",
+                        h,
+                        re.I
+                    ):
+                        valid_match_link = True
+                        href = h
+                        break
 
-                    for link in links:
-                        h = (
-                            link.get_attribute(
-                                "href"
-                            )
-                            or ""
-                        )
-
-                        if h:
-                            href = h
-                            break
-
-                if not href:
+                if not valid_match_link:
                     continue
 
-                key = (
-                    href,
-                    alts[0],
-                    alts[1],
-                )
-
-                if key not in seen:
-                    seen.add(key)
-                    result.append(
-                        (el, href)
-                    )
-
+                best = el
                 break
+
+            if best is None:
+                continue
+
+            key = (
+                href,
+                clean(best.text)
+            )
+
+            if key in seen:
+                continue
+
+            seen.add(key)
+            result.append(
+                (best, href)
+            )
 
         except Exception:
             pass
