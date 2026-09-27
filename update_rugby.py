@@ -49,62 +49,111 @@ def containers(driver):
     result = []
     seen = set()
 
-    # Probeer alle skakels na Rugby365 live-wedstryde vind.
-    links = driver.find_elements(
+    images = driver.find_elements(
         By.CSS_SELECTOR,
-        'a[href*="/live/"]',
+        "img[alt]",
     )
 
-    for link in links:
+    for img in images:
         try:
-            href = link.get_attribute("href") or ""
+            alt = clean(
+                img.get_attribute("alt")
+            )
 
-            if not href:
+            if (
+                not alt
+                or alt.lower() in {
+                    "image",
+                    "logo",
+                }
+            ):
                 continue
 
-            el = link
+            el = img
 
-            # Gaan op deur die ouer-elemente totdat ons
-            # 'n wedstrydkaart met spanname kry.
-            for _ in range(15):
-                el = el.find_element(By.XPATH, "..")
+            for _ in range(12):
+                el = el.find_element(
+                    By.XPATH,
+                    "..",
+                )
 
                 text = clean(el.text)
 
+                if not text or len(text) > 1200:
+                    continue
+
                 alts = []
 
-                for img in el.find_elements(
+                for other in el.find_elements(
                     By.CSS_SELECTOR,
                     "img[alt]",
                 ):
                     a = clean(
-                        img.get_attribute("alt")
+                        other.get_attribute("alt")
                     )
 
                     if (
                         a
                         and a.lower()
-                        not in {"image", "logo"}
+                        not in {
+                            "image",
+                            "logo",
+                        }
                         and a not in alts
                     ):
                         alts.append(a)
 
-                # 'n Wedstrydkaart behoort minstens
-                # twee spanname te hê.
-                if len(alts) >= 2 and len(text) <= 1000:
+                if len(alts) < 2:
+                    continue
 
-                    key = (
-                        href,
-                        text,
+                href = ""
+
+                links = el.find_elements(
+                    By.CSS_SELECTOR,
+                    'a[href*="/live/"]',
+                )
+
+                if links:
+                    href = (
+                        links[0]
+                        .get_attribute("href")
+                        or ""
                     )
 
-                    if key not in seen:
-                        seen.add(key)
-                        result.append(
-                            (el, href)
+                if not href:
+                    links = el.find_elements(
+                        By.CSS_SELECTOR,
+                        "a[href]",
+                    )
+
+                    for link in links:
+                        h = (
+                            link.get_attribute(
+                                "href"
+                            )
+                            or ""
                         )
 
-                    break
+                        if h:
+                            href = h
+                            break
+
+                if not href:
+                    continue
+
+                key = (
+                    href,
+                    alts[0],
+                    alts[1],
+                )
+
+                if key not in seen:
+                    seen.add(key)
+                    result.append(
+                        (el, href)
+                    )
+
+                break
 
         except Exception:
             pass
