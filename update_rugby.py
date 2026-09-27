@@ -32,8 +32,8 @@ def send_notification(title, body):
     payload = {
         "app_id": app_id,
         "target_channel": "push",
-        "included_segments": [
-            "Subscribed Users"
+        "include_subscription_ids": [
+            "ccb5dc1b-27a5-451f-8bb0-32e721825bba"
         ],
         "headings": {
             "en": title
