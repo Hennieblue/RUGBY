@@ -54,15 +54,21 @@ def containers(driver):
         'a[href*="/live/"]'
     )
 
-    for link in links:
+    print("LIVE LINKS FOUND:", len(links))
+
+    for i, link in enumerate(links, 1):
         try:
             href = link.get_attribute("href") or ""
+            text = clean(link.text)
 
-            if "/live/" not in href:
-                continue
+            print(
+                f"LIVE LINK {i}:",
+                href,
+                "|",
+                text[:200]
+            )
 
             el = link
-            best = None
 
             for _ in range(12):
                 el = el.find_element(
@@ -70,9 +76,9 @@ def containers(driver):
                     ".."
                 )
 
-                text = clean(el.text)
+                card_text = clean(el.text)
 
-                if not text or len(text) > 800:
+                if not card_text:
                     continue
 
                 alts = []
@@ -87,7 +93,8 @@ def containers(driver):
 
                     if (
                         a
-                        and a.lower() not in {
+                        and a.lower()
+                        not in {
                             "image",
                             "logo",
                             "company logo",
@@ -97,91 +104,30 @@ def containers(driver):
                     ):
                         alts.append(a)
 
-                if len(alts) < 2:
-                    continue
-
-                # Die kaart moet werklike wedstryd-inligting bevat.
-                has_score = bool(
-                    re.search(
-                        r"\b\d+\s*-\s*\d+\b",
-                        text
-                    )
-                )
-
-                has_time = bool(
-                    re.search(
-                        r"\b\d{1,2}:\d{2}\b",
-                        text
-                    )
-                )
-
-                has_status = any(
-                    word in text.upper()
-                    for word in [
-                        "LIVE",
-                        "FINISHED",
-                        "UPCOMING",
-                        "FT",
-                        "HALF TIME",
-                        "HT"
-                    ]
-                )
-
-                if not (
-                    has_score
-                    or has_time
-                    or has_status
-                ):
-                    continue
-
-                # Maak seker daar is 'n werklike
-                # wedstryd-link binne hierdie kaart.
-                match_links = el.find_elements(
-                    By.CSS_SELECTOR,
-                    'a[href*="/live/"]'
-                )
-
-                valid_match_link = False
-
-                for match_link in match_links:
-                    h = (
-                        match_link.get_attribute("href")
-                        or ""
+                if len(alts) >= 2:
+                    key = (
+                        href,
+                        card_text
                     )
 
-                    if re.search(
-                        r"/live/[^/?#]+-vs-[^/?#]+",
-                        h,
-                        re.I
-                    ):
-                        valid_match_link = True
-                        href = h
-                        break
+                    if key not in seen:
+                        seen.add(key)
+                        result.append(
+                            (el, href)
+                        )
 
-                if not valid_match_link:
-                    continue
+                    break
 
-                best = el
-                break
-
-            if best is None:
-                continue
-
-            key = (
-                href,
-                clean(best.text)
+        except Exception as e:
+            print(
+                "LINK ERROR:",
+                str(e)[:150]
             )
 
-            if key in seen:
-                continue
-
-            seen.add(key)
-            result.append(
-                (best, href)
-            )
-
-        except Exception:
-            pass
+    print(
+        "MATCH CONTAINERS FOUND:",
+        len(result)
+    )
 
     return result
 def read_matches(driver):
