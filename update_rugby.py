@@ -64,6 +64,71 @@ def send_notification(title, body):
             "ONESIGNAL ERROR:",
             str(e)
         )
+def load_previous_data():
+    if not OUT.exists():
+        return []
+
+    try:
+        data = json.loads(
+            OUT.read_text(
+                encoding="utf-8"
+            )
+        )
+
+        return data.get(
+            "matches",
+            []
+        )
+
+    except Exception as e:
+        print(
+            "PREVIOUS DATA ERROR:",
+            str(e)
+        )
+        return []
+def check_finished_matches(previous_matches, current_matches):
+    previous = {}
+
+    for match in previous_matches:
+        key = (
+            match["home"].lower(),
+            match["away"].lower()
+        )
+        previous[key] = match
+
+    for match in current_matches:
+        if match["status"] != "FINISHED":
+            continue
+
+        key = (
+            match["home"].lower(),
+            match["away"].lower()
+        )
+
+        old = previous.get(key)
+
+        if old is None:
+            continue
+
+        if old.get("status") == "FINISHED":
+            continue
+
+        title = "Rugby Today"
+
+        body = (
+            f'{match["home"]} {match["score"]} '
+            f'{match["away"]}'
+        )
+
+        print(
+            "SENDING FINISHED:",
+            body
+        )
+
+        send_notification(
+            title,
+            body
+        )
 def clean(value): return re.sub(r"\s+", " ", value or "").strip()
 
 def first_text(parent, selector, default=""):
@@ -341,6 +406,8 @@ def main():
     driver = make_driver()
 
     try:
+        previous_matches = load_previous_data()
+
         matches = read_matches(driver)
 
         for match in matches:
@@ -355,8 +422,12 @@ def main():
                 match["score"],
             )
 
-        print("COMMENTARY SKIPPED FOR TEST")
-        print("ONESIGNAL TEST REMOVED")
+        print("CHECKING FINISHED MATCHES")
+
+        check_finished_matches(
+            previous_matches,
+            matches
+        )
 
         payload = {
             "updated": datetime.now(SA).strftime(
