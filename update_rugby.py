@@ -428,12 +428,6 @@ def main():
             previous_matches,
             matches
         )
-        test_match = matches[0]
-
-        send_notification(
-            "Rugby Today",
-            f'{test_match["home"]} {test_match["score"]} {test_match["away"]}'
-        )        
 
         payload = {
             "updated": datetime.now(SA).strftime(
