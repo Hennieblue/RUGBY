@@ -356,12 +356,7 @@ def main():
             )
 
         print("COMMENTARY SKIPPED FOR TEST")
-        print("ONESIGNAL TEST SKIPPED")
-
-        send_notification(
-            "Rugby Today Test",
-            "GitHub Actions kan nou OneSignal notifications stuur."
-        )        
+        print("ONESIGNAL TEST REMOVED")
 
         payload = {
             "updated": datetime.now(SA).strftime(
