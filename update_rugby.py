@@ -65,26 +65,31 @@ def send_notification(title, body):
             str(e)
         )
 def load_previous_data():
+    # Lees die vorige gepubliseerde data van GitHub Pages.
+    # Dit gee vir ons die vorige run se status, selfs wanneer
+    # GitHub Actions met 'n vars checkout begin.
+    previous_url = "https://hennieblue.github.io/Rugby-Today/data.json"
+
+    try:
+        with urlopen(previous_url, timeout=20) as response:
+            data = json.loads(response.read().decode("utf-8"))
+
+        print("PREVIOUS DATA: loaded from GitHub Pages")
+        return data.get("matches", [])
+
+    except Exception as e:
+        print("PREVIOUS DATA WEB ERROR:", str(e))
+
+    # Plaaslike data.json is 'n fallback vir handmatige/local runs.
     if not OUT.exists():
         return []
 
     try:
-        data = json.loads(
-            OUT.read_text(
-                encoding="utf-8"
-            )
-        )
-
-        return data.get(
-            "matches",
-            []
-        )
-
+        data = json.loads(OUT.read_text(encoding="utf-8"))
+        print("PREVIOUS DATA: loaded from local data.json")
+        return data.get("matches", [])
     except Exception as e:
-        print(
-            "PREVIOUS DATA ERROR:",
-            str(e)
-        )
+        print("PREVIOUS DATA ERROR:", str(e))
         return []
 def check_finished_matches(previous_matches, current_matches):
     previous = {}
