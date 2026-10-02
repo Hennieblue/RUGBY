@@ -236,7 +236,7 @@ def containers(driver):
                     # is die een wat ons wil hê.
                     if len(alts) >= 2:
                         result.append(
-                            (el, href)
+                            (el, href, alts[:2])
                         )
                         break
 
@@ -244,7 +244,7 @@ def containers(driver):
                 # As die spanname-prente nie beskikbaar is nie,
                 # gebruik steeds die live-link.
                 result.append(
-                    (link, href)
+                    (link, href, [])
                 )
 
         except Exception as e:
@@ -285,7 +285,7 @@ def read_matches(driver):
     matches = []
     seen = set()
 
-    for el, href in containers(driver):
+    for el, href, alts in containers(driver):
         try:
             slug = re.search(
                 r"/live/([^/?#]+)",
@@ -307,13 +307,19 @@ def read_matches(driver):
             if len(parts) != 2:
                 continue
 
-            home = clean(
-                parts[0].replace("-", " ")
-            )
-
-            away = clean(
-                parts[1].replace("-", " ")
-            )
+            # Rugby365 se URL-volgorde is nie altyd die wedstryd se
+            # werklike home/away volgorde nie. Gebruik die spanname
+            # uit die wedstrydkaart wanneer dit beskikbaar is.
+            if len(alts) >= 2:
+                home = clean(alts[0])
+                away = clean(alts[1])
+            else:
+                home = clean(
+                    parts[0].replace("-", " ")
+                )
+                away = clean(
+                    parts[1].replace("-", " ")
+                )
 
             if not home or not away:
                 continue
