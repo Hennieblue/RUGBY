@@ -381,6 +381,7 @@ def read_matches(driver):
                 "kickoff": kickoff,
                 "status": status,
                 "score": score,
+                "url": href,
                 "commentary": []
             })
 
@@ -420,6 +421,12 @@ def main():
         previous_matches = load_previous_data()
 
         matches = read_matches(driver)
+
+        # Lees Rugby365 se Key Events vir LIVE en FINISHED wedstryde.
+        # Upcoming wedstryde word nie besoek nie.
+        for match in matches:
+            if match["status"] in ("LIVE", "FINISHED"):
+                add_commentary(driver, match)
 
         for match in matches:
             print(
