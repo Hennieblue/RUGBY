@@ -118,7 +118,7 @@ def check_finished_matches(previous_matches, current_matches):
         if old.get("status") == "FINISHED":
             continue
 
-        title = "Rugby FULL TIME"
+        title = "FINAL"
 
         body = (
             f'{match["home"]} {match["score"]} '
