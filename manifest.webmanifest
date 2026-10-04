@@ -1,9 +1,9 @@
 {
-  "id": "/Rugby-Today/",
-  "name": "Rugby Today",
-  "short_name": "Rugby Today",
-  "start_url": "/Rugby-Today/",
-  "scope": "/Rugby-Today/",
+  "id": "/RUGBY/"
+  "name": "Rugby Today"
+  "short_name": "Rugby Today"
+  "start_url": "/RUGBY/"
+  "scope": "/RUGBY/"
   "display": "standalone",
   "background_color": "#06172b",
   "theme_color": "#07213b",
