@@ -1,11 +1,10 @@
 {
-  "id": "/RUGBY/"
-  "name": "Rugby Today"
-  "short_name": "Rugby Today"
-  "start_url": "/RUGBY/"
-  "scope": "/RUGBY/"
+  "id": "/RUGBY/test/",
+  "name": "Rugby Notification Test",
+  "short_name": "Rugby Test",
+  "start_url": "/RUGBY/test/",
+  "scope": "/RUGBY/test/",
   "display": "standalone",
   "background_color": "#06172b",
-  "theme_color": "#07213b",
-  "description": "Daily rugby fixtures, scores and key events."
+  "theme_color": "#07213b"
 }
