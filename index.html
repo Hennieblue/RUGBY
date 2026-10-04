@@ -2,48 +2,399 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Rugby Notification Test</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07213b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Rugby Today">
   <link rel="manifest" href="manifest.webmanifest">
+  <title>Rugby Today</title>
+
+  <style>
+    :root{font-family:Arial,Helvetica,sans-serif;color-scheme:dark}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:#06172b;color:#fff}
+    header{background:#0a3156;border-bottom:4px solid #f3c541;padding:1.2rem 1rem}
+    header div,main{width:min(100%,44rem);margin:auto}
+    h1{font-size:2.1rem;margin:0}
+    .date{font-size:1.08rem;margin:.5rem 0 0;color:#d9eafa}
+    main{padding:1rem}
+    .language{display:flex;gap:.65rem;margin-bottom:1rem}
+    .language button{flex:1;background:#16476f;color:#fff}
+    .language button[aria-pressed="true"]{background:#f3c541;color:#06172b;border-color:#f3c541}
+    button{min-height:3.5rem;border:2px solid #fff;border-radius:.75rem;font:inherit;font-size:1.08rem;font-weight:700;cursor:pointer}
+    button:focus,a:focus{outline:4px solid #79d9ff;outline-offset:3px}
+    .toolbar{display:flex;align-items:center;justify-content:space-between;gap:.7rem;margin-bottom:1rem}
+    #updated{margin:0;color:#c9dbea}
+    .refresh{padding:.7rem 1rem;background:#f3c541;color:#06172b;border-color:#f3c541}
+    #matches{display:grid;gap:.9rem}
+    .match{width:100%;padding:1rem;text-align:left;background:#0d3c66;color:#fff}
+    .score{display:block;margin-top:.55rem;color:#ffe477;font-size:1.4rem}
+    .details{margin:-.5rem 0 .35rem;padding:1rem;border:2px solid #6691b3;border-radius:.75rem;background:#0a2948;line-height:1.6}
+    .details p{margin:.2rem 0}
+    .details h2{font-size:1.2rem;margin:1rem 0 .35rem}
+    .details ul{padding-left:1.4rem}
+    .details li{margin:.35rem 0}
+    .details a{color:#91e8ff;font-weight:700}
+    .notice{padding:1rem;border:2px solid #7195b1;border-radius:.75rem;background:#0a2948;line-height:1.5}
+    .error{border-color:#ff9a9a}
+    .notifications{width:100%;margin-bottom:1rem;padding:.8rem 1rem;background:#f3c541;color:#06172b;border-color:#f3c541}
+  </style>
+
+  <!-- OneSignal -->
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-</head>
-<body>
-  <h1>Rugby Notification Test</h1>
-  <p>This is a separate test page. The main Rugby Today page is not changed.</p>
-  <button id="enable" type="button">Enable Notifications</button>
-  <p id="status" role="status" aria-live="polite">Waiting...</p>
 
   <script>
     window.OneSignalDeferred = window.OneSignalDeferred || [];
 
     OneSignalDeferred.push(async function(OneSignal) {
       await OneSignal.init({
-        appId: "89e4d4d9-37c6-49dc-9244-8f58dcc386cf",
-        serviceWorkerPath: "test/OneSignalSDKWorker.js",
-        serviceWorkerParam: { scope: "/RUGBY/test/" }
-      });
-
-      document.getElementById("status").textContent =
-        "Permission: " + OneSignal.Notifications.permission;
-
-      document.getElementById("enable").addEventListener("click", async () => {
-        try {
-          await OneSignal.Notifications.requestPermission();
-          if (OneSignal.Notifications.permission) {
-            await OneSignal.User.PushSubscription.optIn();
-            document.getElementById("status").textContent =
-              "Notifications enabled and subscription opted in.";
-            alert("Notifications enabled.");
-          } else {
-            document.getElementById("status").textContent =
-              "Permission was not granted.";
-          }
-        } catch (e) {
-          document.getElementById("status").textContent = "ERROR: " + e;
-          alert("ERROR: " + e);
-        }
+        appId: "89e4d4d9-37c6-49dc-9244-8f58dcc386cf"
       });
     });
+  </script>
+</head>
+
+<body>
+  <header>
+    <div>
+      <h1 id="title">Rugby Today</h1>
+      <p id="date" class="date"></p>
+    </div>
+  </header>
+
+  <main>
+    <div class="language" role="group" aria-label="Language / Taal">
+      <button id="en" type="button">English</button>
+      <button id="af" type="button">Afrikaans</button>
+    </div>
+
+    <button id="notifications" class="notifications" type="button">
+      Enable Notifications
+    </button>
+
+    <div class="toolbar">
+      <p id="updated"></p>
+      <button id="refresh" class="refresh" type="button">Refresh</button>
+    </div>
+
+    <div id="message" aria-live="polite"></div>
+    <div id="matches"></div>
+  </main>
+
+  <script>
+    let data={matches:[],updated:""},
+        openKey="",
+        language=localStorage.getItem("rugby-language")||"en";
+
+    const t={
+      en:{
+        title:"Rugby Today",
+        updated:"Data updated",
+        refresh:"Refresh",
+        against:"versus",
+        kickoff:"Kick-off",
+        status:"Status",
+        score:"Score",
+        events:"Commentary / key events",
+        none:"No rugby matches are scheduled today.",
+        noevents:"No key events yet.",
+        open:"Open Rugby365 match page",
+        error:"The rugby information could not be loaded. Press Refresh to try again.",
+        upcoming:"Upcoming",
+        finished:"Full Time",
+        notifications:"Enable Notifications",
+        notificationsOn:"Notifications Enabled",
+        notificationsUnsupported:"Notifications are not supported here. Open Rugby Today from the iPhone Home Screen.",
+        notificationsDenied:"Notifications are blocked. You can change this in your browser notification settings."
+      },
+
+      af:{
+        title:"Rugby Vandag",
+        updated:"Data opgedateer",
+        refresh:"Verfris",
+        against:"teen",
+        kickoff:"Afskop",
+        status:"Status",
+        score:"Telling",
+        events:"Kommentaar / belangrike gebeure",
+        none:"Geen rugbywedstryde is vandag geskeduleer nie.",
+        noevents:"Nog geen belangrike gebeure nie.",
+        open:"Maak Rugby365-wedstrydblad oop",
+        error:"Die rugby-inligting kon nie gelaai word nie. Druk Verfris om weer te probeer.",
+        upcoming:"Komende",
+        finished:"Voltyds",
+        notifications:"Skakel Notifications Aan",
+        notificationsOn:"Notifications Aangeskakel",
+        notificationsUnsupported:"Notifications word nie hier ondersteun nie. Maak Rugby Today vanaf die iPhone Home Screen oop.",
+        notificationsDenied:"Notifications is geblokkeer. Jy kan dit in jou blaaier se notification settings verander."
+      }
+    };
+
+    const list=document.querySelector("#matches"),
+          message=document.querySelector("#message");
+
+    function statusText(s,w){
+      return s==="FINISHED"
+        ? w.finished
+        : s==="UPCOMING"
+        ? w.upcoming
+        : s||w.upcoming;
+    }
+
+    function key(m){
+      return m.home+"|"+m.away+"|"+m.kickoff;
+    }
+
+    function draw(){
+      const w=t[language];
+
+      document.documentElement.lang=language;
+
+      document.querySelector("#title").textContent=w.title;
+
+      document.querySelector("#date").textContent=
+        new Intl.DateTimeFormat(
+          language==="af"?"af-ZA":"en-ZA",
+          {
+            timeZone:"Africa/Johannesburg",
+            weekday:"long",
+            day:"numeric",
+            month:"long",
+            year:"numeric"
+          }
+        ).format(new Date());
+
+      document.querySelector("#refresh").textContent=w.refresh;
+
+      document.querySelector("#updated").textContent=
+        w.updated+": "+(data.updated||"-");
+
+      const nb=document.querySelector("#notifications");
+
+      if(
+        "Notification" in window &&
+        Notification.permission==="granted"
+      ){
+        nb.textContent=w.notificationsOn;
+      }else{
+        nb.textContent=w.notifications;
+      }
+
+      for(const l of ["en","af"]){
+        document.querySelector("#"+l)
+          .setAttribute(
+            "aria-pressed",
+            String(language===l)
+          );
+      }
+
+      list.replaceChildren();
+      message.replaceChildren();
+
+      if(!data.matches.length){
+        message.innerHTML=
+          '<p class="notice">'+w.none+'</p>';
+        return;
+      }
+
+      data.matches.forEach((m,i)=>{
+        const k=key(m),
+              b=document.createElement("button");
+
+        b.type="button";
+        b.className="match";
+        b.setAttribute(
+          "aria-expanded",
+          String(openKey===k)
+        );
+        b.setAttribute(
+          "aria-controls",
+          "details-"+i
+        );
+
+        b.innerHTML=
+          m.home+" "+w.against+" "+m.away+
+          '<span class="score">'+
+          statusText(m.status,w)+": "+m.score+
+          "</span>";
+
+        const d=document.createElement("section");
+
+        d.id="details-"+i;
+        d.className="details";
+        d.hidden=openKey!==k;
+        d.tabIndex=-1;
+
+        const events=
+          (m.commentary&&m.commentary.length)
+          ?
+          "<ul>"+
+          m.commentary
+            .map(x=>"<li>"+escapeHtml(x)+"</li>")
+            .join("")+
+          "</ul>"
+          :
+          "<p>"+
+          escapeHtml(m.commentary_note||w.noevents)+
+          "</p>";
+
+        d.innerHTML=
+          "<p><strong>"+w.kickoff+":</strong> "+
+          escapeHtml(m.kickoff||"-")+
+          "</p>"+
+          "<p><strong>"+w.status+":</strong> "+
+          statusText(m.status,w)+
+          "</p>"+
+          "<p><strong>"+w.score+":</strong> "+
+          escapeHtml(m.score)+
+          "</p>"+
+          "<h2>"+w.events+"</h2>"+
+          events+
+          '<p><a href="'+
+          encodeURI(m.url)+
+          '" target="_blank" rel="noopener">'+
+          w.open+
+          "</a></p>";
+
+        b.addEventListener("click",()=>{
+          openKey=openKey===k?"":k;
+          draw();
+
+          if(openKey){
+            document
+              .querySelector("#details-"+i)
+              .focus();
+          }
+        });
+
+        list.append(b,d);
+      });
+    }
+
+    function escapeHtml(v){
+      return String(v||"").replace(
+        /[&<>\"]/g,
+        c=>({
+          "&":"&amp;",
+          "<":"&lt;",
+          ">":"&gt;",
+          '"':"&quot;"
+        }[c])
+      );
+    }
+
+    async function load(speak=false){
+      try{
+        const r=await fetch(
+          "data.json?t="+Date.now(),
+          {cache:"no-store"}
+        );
+
+        if(!r.ok)throw new Error();
+
+        data=await r.json();
+
+        message.replaceChildren();
+
+        draw();
+
+        if(speak){
+          message.setAttribute(
+            "aria-label",
+            t[language].updated+": "+data.updated
+          );
+        }
+
+      }catch(e){
+        message.innerHTML=
+          '<p class="notice error">'+
+          t[language].error+
+          "</p>";
+      }
+    }
+
+    async function enableNotifications(){
+      const w=t[language],
+            b=document.querySelector("#notifications");
+
+      try{
+        if(!window.OneSignalDeferred){
+          throw new Error("OneSignal is not available");
+        }
+
+        OneSignalDeferred.push(async function(OneSignal){
+
+          await OneSignal.Notifications.requestPermission();
+
+          if(OneSignal.Notifications.permission){
+
+            await OneSignal.User.PushSubscription.optIn();
+
+            b.textContent=w.notificationsOn;
+
+            alert(
+              w.notificationsOn+
+              ". OneSignal push subscription is now enabled."
+            );
+
+          }else{
+
+            alert(w.notificationsDenied);
+
+          }
+        });
+
+      }catch(e){
+
+        alert(
+          "OneSignal could not enable notifications. "+
+          "Please refresh the page and try again."
+        );
+
+      }
+    }
+
+    if("serviceWorker" in navigator){
+      navigator.serviceWorker
+        .register("sw.js")
+        .catch(()=>{});
+    }
+
+    document
+      .querySelector("#notifications")
+      .addEventListener(
+        "click",
+        enableNotifications
+      );
+
+    document
+      .querySelector("#refresh")
+      .addEventListener(
+        "click",
+        ()=>load(true)
+      );
+
+    for(const l of ["en","af"]){
+      document
+        .querySelector("#"+l)
+        .addEventListener("click",()=>{
+          language=l;
+          localStorage.setItem(
+            "rugby-language",
+            l
+          );
+          draw();
+        });
+    }
+
+    draw();
+    load();
+
+    setInterval(
+      ()=>load(false),
+      30000
+    );
   </script>
 </body>
 </html>
