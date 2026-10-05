@@ -41,7 +41,7 @@ def send_notification(title, body):
         "contents": {
             "en": body
         },
-        "url": "https://hennieblue.github.io/Rugby-Today/"
+        "url": "https://hennieblue.github.io/RUGBY/"
     }
 
     request = Request(
