@@ -33,7 +33,7 @@ def send_notification(title, body):
         "app_id": app_id,
         "target_channel": "push",
         "include_subscription_ids": [
-            "ccb5dc1b-27a5-451f-8bb0-32e721825bba"
+            "77a05081-70d1-4eaf-a3b4-5094d1cf829f"
         ],
         "headings": {
             "en": title
