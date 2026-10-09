@@ -68,7 +68,7 @@ def load_previous_data():
     # Lees die vorige gepubliseerde data van GitHub Pages.
     # Dit gee vir ons die vorige run se status, selfs wanneer
     # GitHub Actions met 'n vars checkout begin.
-    previous_url = "https://hennieblue.github.io/Rugby-Today/data.json"
+    previous_url = "https://hennieblue.github.io/RUGBY/data.json"
 
     try:
         with urlopen(previous_url, timeout=20) as response:
