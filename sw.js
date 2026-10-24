@@ -12,7 +12,7 @@ self.addEventListener("push", event => {
 
   const title = data.title || "Rugby Today";
   const options = {
-    body: data.body || "There is a new rugby update.",
+    body: data.body || data.alert || "There is a new rugby update.",
     tag: data.tag || "rugby-today",
     data: { url: data.url || "./" }
   };
