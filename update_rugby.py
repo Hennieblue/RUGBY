@@ -392,27 +392,103 @@ def read_matches(driver):
             )
 
     return matches
+
 def add_commentary(driver, match):
     try:
-        driver.get(match["url"]); WebDriverWait(driver,20).until(EC.presence_of_element_located((By.CSS_SELECTOR,".game-header"))); time.sleep(.7)
-        events=driver.find_elements(By.CSS_SELECTOR,".key-events-container .key-event")
-        lines=[]
+        driver.get(match["url"])
+
+        WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located(
+                (By.CSS_SELECTOR, ".mc-key-events")
+            )
+        )
+
+        time.sleep(1)
+
+        events = driver.find_elements(
+            By.CSS_SELECTOR,
+            ".mc-key-events .events .event"
+        )
+
+        lines = []
+
         for event in reversed(events):
-            interval=first_text(event,".interval")
-            if interval: lines.append(interval.upper()); continue
-            hp,ap=first_text(event,".side.home .name"),first_text(event,".side.away .name")
-            player=hp or ap or "Unknown player"; team=match["home"] if hp else match["away"] if ap else "Unknown team"
-            kind="EVENT"
-            icons=event.find_elements(By.CSS_SELECTOR,".icon-image")
+            text = clean(event.text)
+
+            if not text:
+                continue
+
+            interval = first_text(event, ".interval")
+            if interval:
+                lines.append(interval.upper())
+                continue
+
+            hp = first_text(event, ".side.home .name")
+            ap = first_text(event, ".side.away .name")
+
+            player = hp or ap or "Unknown player"
+
+            if hp:
+                team = match["home"]
+            elif ap:
+                team = match["away"]
+            else:
+                team = "Unknown team"
+
+            classes = event.get_attribute("class") or ""
+
+            icons = event.find_elements(
+                By.CSS_SELECTOR, ".icon"
+            )
+
             if icons:
-                for c in (icons[0].get_attribute("class") or "").split():
-                    if c in EVENT_NAMES: kind=EVENT_NAMES[c]; break
-            minute,label=first_text(event,".score .time"),first_text(event,".score .label")
-            line=((minute+" ") if minute else "")+f"{team} - {kind}: {player}"+((f". Score: {label}") if label else "")
+                classes += " " + (
+                    icons[0].get_attribute("class") or ""
+                )
+
+            kind = "EVENT"
+
+            if "yellow-card" in classes:
+                kind = "YELLOW CARD"
+            elif "red-card" in classes:
+                kind = "RED CARD"
+            elif "try-conversion" in classes:
+                kind = "CONVERSION"
+            elif "try" in classes:
+                kind = "TRY"
+            elif "penalty" in classes:
+                kind = "PENALTY GOAL"
+            elif "drop-goal" in classes:
+                kind = "DROP GOAL"
+            elif "substitution" in classes:
+                kind = "SUBSTITUTION"
+
+            minute = first_text(event, ".time")
+            label = first_text(event, ".label")
+
+            line = (
+                ((minute + " ") if minute else "")
+                + f"{team} - {kind}: {player}"
+                + (f". Score: {label}" if label else "")
+            )
+
             lines.append(line)
-        match["commentary"]=lines
+
+        match["commentary"] = lines
+
+        print(
+            "COMMENTARY FOUND:",
+            match["home"],
+            "vs",
+            match["away"],
+            len(lines)
+        )
+
     except Exception as e:
-        match["commentary_note"]="Commentary is not available yet."
+        print("COMMENTARY ERROR:", str(e))
+        match["commentary_note"] = (
+            "Commentary is not available yet."
+        )
 
 def main():
     driver = make_driver()
