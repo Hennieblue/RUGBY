@@ -399,7 +399,7 @@ def add_commentary(driver, match):
 
         WebDriverWait(driver, 20).until(
             EC.presence_of_element_located(
-                (By.CSS_SELECTOR, ".mc-key-events")
+                (By.CSS_SELECTOR, ".mc-key-events .events .event")
             )
         )
 
@@ -413,66 +413,164 @@ def add_commentary(driver, match):
         lines = []
 
         for event in reversed(events):
-            text = clean(event.text)
+            event_text = event.get_attribute("textContent") or ""
+            event_text = clean(event_text)
 
-            if not text:
+            if not event_text:
                 continue
 
-            interval = first_text(event, ".interval")
-            if interval:
-                lines.append(interval.upper())
+            event_classes = set(
+                (event.get_attribute("class") or "").split()
+            )
+
+            if "interval" in event_classes:
+                lines.append(event_text.upper())
                 continue
-
-            hp = first_text(event, ".side.home .name")
-            ap = first_text(event, ".side.away .name")
-
-            player = hp or ap or "Unknown player"
-
-            if hp:
-                team = match["home"]
-            elif ap:
-                team = match["away"]
-            else:
-                team = "Unknown team"
-
-            classes = event.get_attribute("class") or ""
 
             icons = event.find_elements(
                 By.CSS_SELECTOR, ".icon"
             )
 
+            icon_classes = set()
             if icons:
-                classes += " " + (
-                    icons[0].get_attribute("class") or ""
+                icon_classes = set(
+                    (icons[0].get_attribute("class") or "").split()
                 )
 
-            kind = "EVENT"
+            player_rows = []
 
-            if "yellow-card" in classes:
-                kind = "YELLOW CARD"
-            elif "red-card" in classes:
-                kind = "RED CARD"
-            elif "try-conversion" in classes:
-                kind = "CONVERSION"
-            elif "try" in classes:
-                kind = "TRY"
-            elif "penalty" in classes:
-                kind = "PENALTY GOAL"
-            elif "drop-goal" in classes:
-                kind = "DROP GOAL"
-            elif "substitution" in classes:
-                kind = "SUBSTITUTION"
-
-            minute = first_text(event, ".time")
-            label = first_text(event, ".label")
-
-            line = (
-                ((minute + " ") if minute else "")
-                + f"{team} - {kind}: {player}"
-                + (f". Score: {label}" if label else "")
+            sides = event.find_elements(
+                By.CSS_SELECTOR, ".side"
             )
 
-            lines.append(line)
+            for side in sides:
+                side_classes = set(
+                    (side.get_attribute("class") or "").split()
+                )
+
+                if "home" in side_classes:
+                    team = match["home"]
+                elif "away" in side_classes:
+                    team = match["away"]
+                else:
+                    team = "Unknown team"
+
+                names = side.find_elements(
+                    By.CSS_SELECTOR, ".name"
+                )
+
+                for name in names:
+                    player = clean(
+                        name.get_attribute("textContent")
+                    )
+
+                    if not player:
+                        continue
+
+                    details = name.find_elements(
+                        By.XPATH,
+                        "following-sibling::*[1]"
+                    )
+
+                    detail_text = ""
+                    minute = ""
+                    score = ""
+
+                    if details:
+                        detail = details[0]
+
+                        detail_text = clean(
+                            detail.get_attribute("textContent")
+                        )
+
+                        spans = detail.find_elements(
+                            By.CSS_SELECTOR, "span"
+                        )
+
+                        if spans:
+                            minute = clean(
+                                spans[0].get_attribute("textContent")
+                            )
+
+                        if not minute:
+                            minute_match = re.search(
+                                r"\b\d{1,3}\s*['’]",
+                                detail_text
+                            )
+                            if minute_match:
+                                minute = minute_match.group(0)
+
+                        score_match = re.search(
+                            r"\b\d+\s*-\s*\d+\b",
+                            detail_text
+                        )
+
+                        if score_match:
+                            score = score_match.group(0)
+
+                    player_rows.append({
+                        "team": team,
+                        "player": player,
+                        "minute": minute,
+                        "score": score
+                    })
+
+            if not player_rows:
+                continue
+
+            # Rugby365 kombineer 'n drie en omskakeling
+            # soms in een gebeurtenis.
+            if "try-conversion" in event_classes:
+                player_rows.sort(
+                    key=lambda row: (
+                        int(re.search(r"\d+", row["minute"]).group())
+                        if re.search(r"\d+", row["minute"])
+                        else 9999
+                    )
+                )
+
+                for index, row in enumerate(player_rows):
+                    if len(player_rows) >= 2 and index == 0:
+                        kind = "TRY"
+                    else:
+                        kind = "CONVERSION"
+
+                    line = (
+                        (row["minute"] + " " if row["minute"] else "")
+                        + f'{row["team"]} - {kind}: {row["player"]}'
+                        + (f'. Score: {row["score"]}' if row["score"] else "")
+                    )
+
+                    lines.append(line)
+
+                continue
+
+            # Herken ander gebeurtenistipes.
+            if "yellow-card" in icon_classes:
+                kind = "YELLOW CARD"
+            elif "red-card" in icon_classes:
+                kind = "RED CARD"
+            elif "penalty-goal" in icon_classes:
+                kind = "PENALTY GOAL"
+            elif "drop-goal" in icon_classes:
+                kind = "DROP GOAL"
+            elif "conversion" in icon_classes:
+                kind = "CONVERSION"
+            elif "substitution" in icon_classes:
+                kind = "SUBSTITUTION"
+            elif "try" in event_classes or "try" in icon_classes:
+                kind = "TRY"
+            else:
+                kind = "EVENT"
+
+            for row in player_rows:
+                line = (
+                    (row["minute"] + " " if row["minute"] else "")
+                    + f'{row["team"]} - {kind}: {row["player"]}'
+                    + (f'. Score: {row["score"]}' if row["score"] else "")
+                )
+
+                lines.append(line)
 
         match["commentary"] = lines
 
