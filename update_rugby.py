@@ -399,178 +399,120 @@ def add_commentary(driver, match):
 
         WebDriverWait(driver, 20).until(
             EC.presence_of_element_located(
-                (By.CSS_SELECTOR, ".mc-key-events .events .event")
+                (By.CSS_SELECTOR, ".stat-box")
             )
         )
 
         time.sleep(1)
 
-        events = driver.find_elements(
-            By.CSS_SELECTOR,
-            ".mc-key-events .events .event"
-        )
+        def get_live_box():
+            return driver.execute_script("""
+                return [...document.querySelectorAll(".stat-box")]
+                    .find(el => /Live Updates/.test(el.innerText)) || null;
+            """)
+
+        def get_comment_count():
+            box = get_live_box()
+            if box is None:
+                return 0
+
+            return len(
+                box.find_elements(By.CSS_SELECTOR, ".comment")
+            )
+
+        # Laai al die ouer Live Updates.
+        for attempt in range(12):
+            before = get_comment_count()
+
+            button = driver.execute_script("""
+                const box = [...document.querySelectorAll(".stat-box")]
+                    .find(el => /Live Updates/.test(el.innerText));
+
+                return box
+                    ? box.querySelector(".more-button .button")
+                    : null;
+            """)
+
+            if button is None:
+                break
+
+            driver.execute_script(
+                "arguments[0].click();",
+                button
+            )
+
+            after = before
+
+        for _ in range(10):
+                time.sleep(0.5)
+                after = get_comment_count()
+
+                if after > before:
+                    break
+
+            print(
+                "LIVE UPDATES LOADED:",
+                before,
+                "->",
+                after
+            )
+
+            if after <= before:
+                break
+
+        # Lees alle Live Updates.
+        rows = driver.execute_script("""
+            const box = [...document.querySelectorAll(".stat-box")]
+                .find(el => /Live Updates/.test(el.innerText));
+
+            if (!box) return [];
+
+            return [...box.querySelectorAll(".comment")].map(c => ({
+                minute: c.querySelector(".time")?.textContent.trim() || "",
+                text: c.querySelector(".copy")?.textContent.trim() || ""
+            }));
+        """) or []
 
         lines = []
+        seen = set()
 
-        for event in reversed(events):
-            event_text = event.get_attribute("textContent") or ""
-            event_text = clean(event_text)
+        # Rugby365 wys die nuutste inskrywings eerste.
+        # Omkeer gee chronologiese volgorde.
+        for row in reversed(rows):
+            minute = clean(row.get("minute", ""))
+            text = clean(row.get("text", ""))
 
-            if not event_text:
+            if not text:
                 continue
 
-            event_classes = set(
-                (event.get_attribute("class") or "").split()
+            key = (minute, text)
+
+            if key in seen:
+                continue
+
+            seen.add(key)
+
+            line = (
+                (minute + " " if minute else "")
+                + text
             )
 
-            if "interval" in event_classes:
-                lines.append(event_text.upper())
-                continue
+            lines.append(line)
 
-            icons = event.find_elements(
-                By.CSS_SELECTOR, ".icon"
+        # Rugsteun indien Live Updates nie beskikbaar is nie.
+        if not lines:
+            events = driver.find_elements(
+                By.CSS_SELECTOR,
+                ".mc-key-events .events .event"
             )
 
-            icon_classes = set()
-            if icons:
-                icon_classes = set(
-                    (icons[0].get_attribute("class") or "").split()
+            for event in reversed(events):
+                text = clean(
+                    event.get_attribute("textContent")
                 )
 
-            player_rows = []
-
-            sides = event.find_elements(
-                By.CSS_SELECTOR, ".side"
-            )
-
-            for side in sides:
-                side_classes = set(
-                    (side.get_attribute("class") or "").split()
-                )
-
-                if "home" in side_classes:
-                    team = match["home"]
-                elif "away" in side_classes:
-                    team = match["away"]
-                else:
-                    team = "Unknown team"
-
-                names = side.find_elements(
-                    By.CSS_SELECTOR, ".name"
-                )
-
-                for name in names:
-                    player = clean(
-                        name.get_attribute("textContent")
-                    )
-
-                    if not player:
-                        continue
-
-                    details = name.find_elements(
-                        By.XPATH,
-                        "following-sibling::*[1]"
-                    )
-
-                    detail_text = ""
-                    minute = ""
-                    score = ""
-
-                    if details:
-                        detail = details[0]
-
-                        detail_text = clean(
-                            detail.get_attribute("textContent")
-                        )
-
-                        spans = detail.find_elements(
-                            By.CSS_SELECTOR, "span"
-                        )
-
-                        if spans:
-                            minute = clean(
-                                spans[0].get_attribute("textContent")
-                            )
-
-                        if not minute:
-                            minute_match = re.search(
-                                r"\b\d{1,3}\s*['’]",
-                                detail_text
-                            )
-                            if minute_match:
-                                minute = minute_match.group(0)
-
-                        score_match = re.search(
-                            r"\b\d+\s*-\s*\d+\b",
-                            detail_text
-                        )
-
-                        if score_match:
-                            score = score_match.group(0)
-
-                    player_rows.append({
-                        "team": team,
-                        "player": player,
-                        "minute": minute,
-                        "score": score
-                    })
-
-            if not player_rows:
-                continue
-
-            # Rugby365 kombineer 'n drie en omskakeling
-            # soms in een gebeurtenis.
-            if "try-conversion" in event_classes:
-                player_rows.sort(
-                    key=lambda row: (
-                        int(re.search(r"\d+", row["minute"]).group())
-                        if re.search(r"\d+", row["minute"])
-                        else 9999
-                    )
-                )
-
-                for index, row in enumerate(player_rows):
-                    if len(player_rows) >= 2 and index == 0:
-                        kind = "TRY"
-                    else:
-                        kind = "CONVERSION"
-
-                    line = (
-                        (row["minute"] + " " if row["minute"] else "")
-                        + f'{row["team"]} - {kind}: {row["player"]}'
-                        + (f'. Score: {row["score"]}' if row["score"] else "")
-                    )
-
-                    lines.append(line)
-
-                continue
-
-            # Herken ander gebeurtenistipes.
-            if "yellow-card" in icon_classes:
-                kind = "YELLOW CARD"
-            elif "red-card" in icon_classes:
-                kind = "RED CARD"
-            elif "penalty-goal" in icon_classes:
-                kind = "PENALTY GOAL"
-            elif "drop-goal" in icon_classes:
-                kind = "DROP GOAL"
-            elif "conversion" in icon_classes:
-                kind = "CONVERSION"
-            elif "substitution" in icon_classes:
-                kind = "SUBSTITUTION"
-            elif "try" in event_classes or "try" in icon_classes:
-                kind = "TRY"
-            else:
-                kind = "EVENT"
-
-            for row in player_rows:
-                line = (
-                    (row["minute"] + " " if row["minute"] else "")
-                    + f'{row["team"]} - {kind}: {row["player"]}'
-                    + (f'. Score: {row["score"]}' if row["score"] else "")
-                )
-
-                lines.append(line)
+                if text:
+                    lines.append(text)
 
         match["commentary"] = lines
 
@@ -580,6 +522,11 @@ def add_commentary(driver, match):
             "vs",
             match["away"],
             len(lines)
+        )
+
+        print(
+            "LIVE UPDATES TOTAL:",
+            len(rows)
         )
 
     except Exception as e:
