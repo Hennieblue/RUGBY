@@ -413,14 +413,14 @@ def add_commentary(driver, match):
             """)
 
         def get_comment_count():
-            box = get_live_box()
+            return driver.execute_script("""
+                const box = [...document.querySelectorAll(".stat-box")]
+                    .find(el => /Live Updates/i.test(el.innerText));
 
-            if box is None:
-                return 0
-
-            return len(
-                box.find_elements(By.CSS_SELECTOR, ".comment")
-            )
+                return box
+                    ? box.querySelectorAll(".comment").length
+                    : 0;
+            """)
 
         # Wag vir Live Updates of Key Events.
         try:
@@ -436,25 +436,24 @@ def add_commentary(driver, match):
         except Exception:
             pass
 
-        # Laai ouer Live Updates totdat geen nuwe
-        # kommentaar bykom nie.
-        if get_live_box() is not None:
+        # Druk Show More net EEN keer.
+        # Die knoppie laai al die ouer kommentaar.
+        box = get_live_box()
 
-            for attempt in range(12):
+        if box is not None:
 
-                before = get_comment_count()
+            before = get_comment_count()
 
-                button = driver.execute_script("""
-                    const box = [...document.querySelectorAll(".stat-box")]
-                        .find(el => /Live Updates/i.test(el.innerText));
+            button = driver.execute_script("""
+                const box = [...document.querySelectorAll(".stat-box")]
+                    .find(el => /Live Updates/i.test(el.innerText));
 
-                    return box
-                        ? box.querySelector(".more-button .button")
-                        : null;
-                """)
+                return box
+                    ? box.querySelector(".more-button .button")
+                    : null;
+            """)
 
-                if button is None:
-                    break
+            if button is not None:
 
                 driver.execute_script(
                     "arguments[0].click();",
@@ -463,7 +462,8 @@ def add_commentary(driver, match):
 
                 after = before
 
-                for _ in range(10):
+                # Wag vir die volledige kommentaar om te laai.
+                for _ in range(20):
                     time.sleep(0.5)
                     after = get_comment_count()
 
@@ -471,16 +471,13 @@ def add_commentary(driver, match):
                         break
 
                 print(
-                    "LIVE UPDATES LOADED:",
+                    "LIVE UPDATES EXPANDED:",
                     before,
                     "->",
                     after
                 )
 
-                if after <= before:
-                    break
-
-        # Lees al die Live Updates.
+        # Lees alle Live Updates nadat dit oopgemaak is.
         rows = driver.execute_script("""
             const box = [...document.querySelectorAll(".stat-box")]
                 .find(el => /Live Updates/i.test(el.innerText));
@@ -496,7 +493,7 @@ def add_commentary(driver, match):
         lines = []
         seen = set()
 
-        # Rugby365 wys die nuutste eerste.
+        # Rugby365 wys nuutste inskrywings eerste.
         # Omkeer gee afskop tot Full Time.
         for row in reversed(rows):
 
