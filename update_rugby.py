@@ -393,26 +393,28 @@ def read_matches(driver):
 
     return matches
 
+
 def add_commentary(driver, match):
     try:
         driver.get(match["url"])
 
         WebDriverWait(driver, 20).until(
             EC.presence_of_element_located(
-                (By.CSS_SELECTOR, ".stat-box")
+                (By.TAG_NAME, "body")
             )
         )
 
-        time.sleep(1)
+        time.sleep(2)
 
         def get_live_box():
             return driver.execute_script("""
                 return [...document.querySelectorAll(".stat-box")]
-                    .find(el => /Live Updates/.test(el.innerText)) || null;
+                    .find(el => /Live Updates/i.test(el.innerText)) || null;
             """)
 
         def get_comment_count():
             box = get_live_box()
+
             if box is None:
                 return 0
 
@@ -420,50 +422,68 @@ def add_commentary(driver, match):
                 box.find_elements(By.CSS_SELECTOR, ".comment")
             )
 
-        # Laai al die ouer Live Updates.
-        for attempt in range(12):
-            before = get_comment_count()
-
-            button = driver.execute_script("""
-                const box = [...document.querySelectorAll(".stat-box")]
-                    .find(el => /Live Updates/.test(el.innerText));
-
-                return box
-                    ? box.querySelector(".more-button .button")
-                    : null;
-            """)
-
-            if button is None:
-                break
-
-            driver.execute_script(
-                "arguments[0].click();",
-                button
+        # Wag vir Live Updates of Key Events.
+        try:
+            WebDriverWait(driver, 15).until(
+                lambda d: d.execute_script("""
+                    return [...document.querySelectorAll(".stat-box")]
+                        .some(el => /Live Updates/i.test(el.innerText))
+                        || !!document.querySelector(
+                            ".mc-key-events .events .event"
+                        );
+                """)
             )
+        except Exception:
+            pass
 
-            after = before
+        # Laai ouer Live Updates totdat geen nuwe
+        # kommentaar bykom nie.
+        if get_live_box() is not None:
 
-        for _ in range(10):
-                time.sleep(0.5)
-                after = get_comment_count()
+            for attempt in range(12):
 
-                if after > before:
+                before = get_comment_count()
+
+                button = driver.execute_script("""
+                    const box = [...document.querySelectorAll(".stat-box")]
+                        .find(el => /Live Updates/i.test(el.innerText));
+
+                    return box
+                        ? box.querySelector(".more-button .button")
+                        : null;
+                """)
+
+                if button is None:
                     break
 
-            print(
-                "LIVE UPDATES LOADED:",
-                before,
-                "->",
-                after
-            )
+                driver.execute_script(
+                    "arguments[0].click();",
+                    button
+                )
 
-            if after <= before:
-                break
+                after = before
 
-        # Lees alle Live Updates.
+                for _ in range(10):
+                    time.sleep(0.5)
+                    after = get_comment_count()
+
+                    if after > before:
+                        break
+
+                print(
+                    "LIVE UPDATES LOADED:",
+                    before,
+                    "->",
+                    after
+                )
+
+                if after <= before:
+                    break
+
+        # Lees al die Live Updates.
         rows = driver.execute_script("""
             const box = [...document.querySelectorAll(".stat-box")]
-                .find(el => /Live Updates/.test(el.innerText));
+                .find(el => /Live Updates/i.test(el.innerText));
 
             if (!box) return [];
 
@@ -476,9 +496,10 @@ def add_commentary(driver, match):
         lines = []
         seen = set()
 
-        # Rugby365 wys die nuutste inskrywings eerste.
-        # Omkeer gee chronologiese volgorde.
+        # Rugby365 wys die nuutste eerste.
+        # Omkeer gee afskop tot Full Time.
         for row in reversed(rows):
+
             minute = clean(row.get("minute", ""))
             text = clean(row.get("text", ""))
 
@@ -499,14 +520,16 @@ def add_commentary(driver, match):
 
             lines.append(line)
 
-        # Rugsteun indien Live Updates nie beskikbaar is nie.
+        # Key Events as rugsteun.
         if not lines:
+
             events = driver.find_elements(
                 By.CSS_SELECTOR,
                 ".mc-key-events .events .event"
             )
 
             for event in reversed(events):
+
                 text = clean(
                     event.get_attribute("textContent")
                 )
@@ -529,8 +552,14 @@ def add_commentary(driver, match):
             len(rows)
         )
 
+        if lines:
+            print("COMMENTARY FIRST:", lines[0])
+            print("COMMENTARY LAST:", lines[-1])
+
     except Exception as e:
+
         print("COMMENTARY ERROR:", str(e))
+
         match["commentary_note"] = (
             "Commentary is not available yet."
         )
